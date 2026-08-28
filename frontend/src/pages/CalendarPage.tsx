@@ -4,7 +4,6 @@ import type {
   EventClickArg,
   EventInput,
 } from "@fullcalendar/core";
-import esLocale from "@fullcalendar/core/locales/es";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
@@ -93,7 +92,7 @@ export function CalendarPage() {
           className="glass-panel px-4 py-2 text-sm text-[#1d1d1f]/70"
           role="status"
         >
-          Algunas cuentas no respondieron:{" "}
+          Some accounts did not respond:{" "}
           {errors
             .map(
               (item) =>
@@ -106,14 +105,14 @@ export function CalendarPage() {
       <div className="calone-calendar glass-panel relative min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
         {loading ? (
           <p className="absolute right-4 top-3 z-10 text-[12px] font-medium text-[#1d1d1f]/45">
-            Actualizando…
+            Updating…
           </p>
         ) : null}
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="timeGridWeek"
-          locale={esLocale}
+          locale="en"
           firstDay={1}
           headerToolbar={
             isPhone
@@ -129,12 +128,6 @@ export function CalendarPage() {
               ? { center: "timeGridWeek,timeGridDay,dayGridMonth" }
               : undefined
           }
-          buttonText={{
-            today: "Hoy",
-            month: "Mes",
-            week: "Semana",
-            day: "Día",
-          }}
           height="100%"
           stickyHeaderDates
           editable={false}

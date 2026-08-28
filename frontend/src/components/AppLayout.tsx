@@ -25,12 +25,16 @@ function CalendarIcon() {
   );
 }
 
-function AccountsIcon() {
+function SettingsIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="4" y="5" width="16" height="5" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-      <rect x="4" y="12" width="16" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M8 15.5h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M12 3.5v2.2M12 18.3v2.2M4.9 6.5l1.6 1.6M17.5 16.9l1.6 1.6M3.5 12h2.2M18.3 12h2.2M4.9 17.5l1.6-1.6M17.5 7.1l1.6-1.6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -49,18 +53,20 @@ export function AppLayout() {
           <span className="text-[21px] font-semibold tracking-tight">Calone</span>
           <nav className="hidden items-center gap-1 rounded-full bg-black/5 p-1 ring-1 ring-white/50 md:flex">
             <NavLink to="/" end className={desktopLinkClass}>
-              Calendario
+              Calendar
             </NavLink>
-            <NavLink to="/integrations" className={desktopLinkClass}>
-              Calendarios
+            <NavLink to="/settings" className={desktopLinkClass}>
+              Settings
             </NavLink>
           </nav>
           <button
             type="button"
             onClick={() => void logout()}
+            aria-label="Log out"
+            title="Log out"
             className="rounded-full px-3 py-1.5 text-[13px] font-medium text-[#1d1d1f]/55 hover:bg-white/50"
           >
-            {user?.username ?? "Salir"}
+            {user?.username ?? "Log out"}
           </button>
         </div>
       </header>
@@ -78,11 +84,11 @@ export function AppLayout() {
       <nav className="glass-panel absolute inset-x-3 bottom-[max(0.65rem,env(safe-area-inset-bottom))] z-30 flex rounded-[22px] p-1 md:hidden">
         <NavLink to="/" end className={tabClass}>
           <CalendarIcon />
-          Calendario
+          Calendar
         </NavLink>
-        <NavLink to="/integrations" className={tabClass}>
-          <AccountsIcon />
-          Cuentas
+        <NavLink to="/settings" className={tabClass}>
+          <SettingsIcon />
+          Settings
         </NavLink>
       </nav>
     </div>

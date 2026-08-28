@@ -32,7 +32,7 @@ export function useEvents(from: string, to: string) {
           setError(
             err instanceof ApiError
               ? err.message
-              : "No se pudieron cargar los eventos",
+              : "Could not load events",
           );
         }
       } finally {

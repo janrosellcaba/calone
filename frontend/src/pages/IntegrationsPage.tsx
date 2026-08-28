@@ -20,6 +20,35 @@ type SyncResponse = {
   calendars: SubCalendarSummary[];
 };
 
+type SyncAllResponse = {
+  accounts: CalendarAccountSummary[];
+  errors: Array<{ accountId: string; message: string }>;
+};
+
+type AccountPatchResponse = {
+  account: {
+    id: string;
+    displayName: string | null;
+    email: string | null;
+    provider: CalendarSource;
+  };
+};
+
+const PAGE_SYNC_COOLDOWN_MS = 12_000;
+let syncAllInFlight: Promise<SyncAllResponse> | null = null;
+let lastSyncAllAt = 0;
+
+function requestSyncAll() {
+  if (!syncAllInFlight) {
+    syncAllInFlight = apiFetch<SyncAllResponse>("/accounts/sync-all", {
+      method: "POST",
+    }).finally(() => {
+      syncAllInFlight = null;
+    });
+  }
+  return syncAllInFlight;
+}
+
 const PROVIDER_LABEL: Record<CalendarSource, string> = {
   GOOGLE: "Google",
   MICROSOFT: "Microsoft",
@@ -97,7 +126,7 @@ function SubCalendarRow({
       onError(
         err instanceof ApiError
           ? err.message
-          : "No se pudo actualizar el calendario",
+          : "Could not update the calendar",
       );
     }
   }
@@ -111,7 +140,7 @@ function SubCalendarRow({
       onError(
         err instanceof ApiError
           ? err.message
-          : "No se pudo actualizar el color",
+          : "Could not update the color",
       );
     }
   }
@@ -134,7 +163,7 @@ function SubCalendarRow({
       onError(
         err instanceof ApiError
           ? err.message
-          : "No se pudo renombrar el calendario",
+          : "Could not rename the calendar",
       );
     }
   }
@@ -151,7 +180,7 @@ function SubCalendarRow({
               className="peer sr-only"
               checked={calendar.isActive}
               onChange={onToggle}
-              aria-label={`Mostrar ${calendar.name}`}
+              aria-label={`Show ${calendar.name}`}
             />
             <span className="h-5 w-9 rounded-full bg-black/15 transition peer-checked:bg-[#34c759] peer-focus-visible:ring-2 peer-focus-visible:ring-[#007aff]/40" />
             <span className="absolute left-0.5 size-4 rounded-full bg-white shadow-sm transition peer-checked:translate-x-4" />
@@ -166,6 +195,7 @@ function SubCalendarRow({
           }}
           onBlur={() => void saveName(name)}
           className="glass-input min-w-0 flex-1 rounded-xl px-3 py-2 text-[16px] text-[#1d1d1f] outline-none focus:ring-2 focus:ring-[#007aff]/25 sm:text-[14px]"
+          placeholder="Calendar name"
         />
       </div>
       <div className="flex flex-wrap items-center gap-1.5 pl-12 sm:pl-0">
@@ -173,7 +203,7 @@ function SubCalendarRow({
           <button
             key={swatch}
             type="button"
-            aria-label={`Usar color ${swatch}`}
+            aria-label={`Use color ${swatch}`}
             onClick={() => void applyColor(swatch)}
             className="size-5 rounded-full ring-2 ring-white/70 transition hover:scale-110"
             style={{
@@ -191,12 +221,81 @@ function SubCalendarRow({
             type="color"
             value={current}
             onChange={(event) => void applyColor(event.target.value)}
-            aria-label={`Color personalizado de ${calendar.name}`}
+            aria-label={`Custom color for ${calendar.name}`}
             className="absolute inset-0 cursor-pointer opacity-0"
           />
         </label>
       </div>
     </li>
+  );
+}
+
+function AccountNameField({
+  account,
+  onRenamed,
+  onError,
+}: {
+  account: CalendarAccountSummary;
+  onRenamed: (displayName: string) => void;
+  onError: (message: string) => void;
+}) {
+  const initial = account.displayName ?? account.email ?? "";
+  const [name, setName] = useState(initial);
+  const nameRef = useRef(initial);
+  const debounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const next = account.displayName ?? account.email ?? "";
+    setName(next);
+    nameRef.current = next;
+  }, [account.displayName, account.email]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  async function save(nextName: string) {
+    const trimmed = nextName.trim();
+    if (!trimmed || trimmed === nameRef.current) return;
+    try {
+      const result = await apiFetch<AccountPatchResponse>(
+        `/accounts/${account.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ displayName: trimmed }),
+        },
+      );
+      const saved = result.account.displayName ?? trimmed;
+      nameRef.current = saved;
+      onRenamed(saved);
+    } catch (err) {
+      setName(nameRef.current);
+      onError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not rename the account",
+      );
+    }
+  }
+
+  return (
+    <input
+      type="text"
+      value={name}
+      onChange={(event) => {
+        setName(event.target.value);
+        if (debounceRef.current) window.clearTimeout(debounceRef.current);
+        debounceRef.current = window.setTimeout(() => {
+          void save(event.target.value);
+        }, 400);
+      }}
+      onBlur={() => void save(name)}
+      placeholder="Account name"
+      className="-mx-1 w-full cursor-text rounded-lg bg-transparent px-1 text-[15px] font-semibold text-[#1d1d1f] outline-none placeholder:text-[#1d1d1f]/30 hover:bg-white/40 focus:bg-white/50 focus:ring-2 focus:ring-[#007aff]/20"
+      aria-label="Account name"
+    />
   );
 }
 
@@ -207,6 +306,7 @@ export function IntegrationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
 
   useEffect(() => {
@@ -214,17 +314,17 @@ export function IntegrationsPage() {
     const oauthError = searchParams.get("error");
 
     if (connected === "google") {
-      setBanner("Cuenta de Google conectada correctamente.");
+      setBanner("Google account connected.");
     } else if (connected === "microsoft") {
-      setBanner("Cuenta de Microsoft conectada correctamente.");
+      setBanner("Microsoft account connected.");
     } else if (oauthError) {
       const detail = searchParams.get("detail");
       const provider =
         oauthError.startsWith("microsoft") ? "Microsoft" : "Google";
       setBanner(
         detail
-          ? `No se pudo conectar con ${provider}: ${detail}`
-          : `No se pudo conectar con ${provider}.`,
+          ? `Could not connect ${provider}: ${detail}`
+          : `Could not connect ${provider}.`,
       );
     }
 
@@ -240,30 +340,50 @@ export function IntegrationsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadAccounts() {
+    async function loadAndSync() {
       setLoading(true);
       setError(null);
       try {
         const data = await apiFetch<AccountsResponse>("/accounts");
-        if (!cancelled) {
-          setAccounts(data.accounts);
+        if (cancelled) return;
+        setAccounts(data.accounts);
+        setLoading(false);
+
+        if (data.accounts.length === 0) return;
+        if (
+          !syncAllInFlight &&
+          Date.now() - lastSyncAllAt < PAGE_SYNC_COOLDOWN_MS
+        ) {
+          return;
+        }
+
+        setSyncingAll(true);
+        if (!syncAllInFlight) lastSyncAllAt = Date.now();
+        const synced = await requestSyncAll();
+        if (cancelled) return;
+        setAccounts(synced.accounts);
+        if (synced.errors.length > 0) {
+          setError(
+            `Some accounts failed to sync (${synced.errors.length}).`,
+          );
         }
       } catch (err) {
         if (!cancelled) {
           setError(
             err instanceof ApiError
               ? err.message
-              : "No se pudieron cargar las cuentas",
+              : "Could not load accounts",
           );
         }
       } finally {
         if (!cancelled) {
           setLoading(false);
+          setSyncingAll(false);
         }
       }
     }
 
-    void loadAccounts();
+    void loadAndSync();
     return () => {
       cancelled = true;
     };
@@ -284,12 +404,12 @@ export function IntegrationsPage() {
     try {
       await apiFetch<void>(`/accounts/${id}`, { method: "DELETE" });
       setAccounts((prev) => prev.filter((account) => account.id !== id));
-      setBanner("Cuenta desconectada.");
+      setBanner("Account disconnected.");
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : "No se pudo desconectar la cuenta",
+          : "Could not disconnect the account",
       );
     } finally {
       setDisconnectingId(null);
@@ -311,12 +431,12 @@ export function IntegrationsPage() {
             : account,
         ),
       );
-      setBanner("Calendarios sincronizados.");
+      setBanner("Calendars synced.");
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : "No se pudieron sincronizar los calendarios",
+          : "Could not sync calendars",
       );
     } finally {
       setSyncingId(null);
@@ -326,9 +446,10 @@ export function IntegrationsPage() {
   return (
     <section className="mx-auto max-w-3xl space-y-6">
       <div className="space-y-1">
-        <h1 className="text-[28px] font-semibold tracking-tight">Calendarios</h1>
+        <h1 className="text-[28px] font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-[#1d1d1f]/50">
-          Elige qué calendarios ver y con qué color.
+          Click a name to rename it. Up to 10 calendars per account.
+          {syncingAll ? " Syncing…" : ""}
         </p>
       </div>
 
@@ -346,59 +467,70 @@ export function IntegrationsPage() {
 
       <div className="glass-panel p-4 sm:p-5">
         <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-[#1d1d1f]/40">
-          Conectar
+          Connect
         </h2>
         <div className="flex flex-wrap gap-2">
           <a
             href="/api/oauth/google/start"
             className="inline-flex min-h-11 items-center rounded-full bg-[#007aff] px-4 text-[15px] font-semibold text-white shadow-sm"
           >
-            Conectar Google
+            Connect Google
           </a>
           <a
             href="/api/oauth/microsoft/start"
             className="inline-flex min-h-11 items-center rounded-full bg-white/55 px-4 text-[15px] font-semibold text-[#1d1d1f] ring-1 ring-white/80"
           >
-            Conectar Microsoft
+            Connect Microsoft
           </a>
         </div>
       </div>
 
       <div className="space-y-3">
         <h2 className="text-[13px] font-semibold uppercase tracking-wide text-[#1d1d1f]/40">
-          Cuentas
+          Accounts
         </h2>
 
         {loading ? (
-          <p className="text-sm text-[#1d1d1f]/45">Cargando cuentas…</p>
+          <p className="text-sm text-[#1d1d1f]/45">Loading accounts…</p>
         ) : accounts.length === 0 ? (
           <p className="glass-panel px-4 py-5 text-sm text-[#1d1d1f]/45">
-            Todavía no hay cuentas conectadas.
+            No accounts connected yet.
           </p>
         ) : (
           <ul className="space-y-4">
             {accounts.map((account) => (
               <li key={account.id} className="glass-panel overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-[15px] font-semibold">
-                      {account.displayName ?? account.email ?? "Sin nombre"}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    <AccountNameField
+                      account={account}
+                      onRenamed={(displayName) =>
+                        setAccounts((prev) =>
+                          prev.map((item) =>
+                            item.id === account.id
+                              ? { ...item, displayName }
+                              : item,
+                          ),
+                        )
+                      }
+                      onError={setError}
+                    />
                     <p className="truncate text-[13px] text-[#1d1d1f]/45">
                       {providerLabel(account.provider)}
                       {account.email ? ` · ${account.email}` : null}
+                      {` · ${account.subCalendars.length}/10 calendars`}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <button
                       type="button"
-                      disabled={syncingId === account.id}
+                      disabled={syncingId === account.id || syncingAll}
                       onClick={() => void syncAccount(account.id)}
                       className="min-h-10 rounded-full px-3 text-[13px] font-medium text-[#007aff] disabled:opacity-60"
                     >
                       {syncingId === account.id
-                        ? "Sincronizando…"
-                        : "Sincronizar"}
+                        ? "Syncing…"
+                        : "Sync"}
                     </button>
                     <button
                       type="button"
@@ -408,7 +540,7 @@ export function IntegrationsPage() {
                     >
                       {disconnectingId === account.id
                         ? "…"
-                        : "Desconectar"}
+                        : "Disconnect"}
                     </button>
                   </div>
                 </div>
@@ -416,7 +548,7 @@ export function IntegrationsPage() {
                 <div className="border-t border-white/50 px-4 pb-1">
                   {!account.subCalendars || account.subCalendars.length === 0 ? (
                     <p className="py-3 text-sm text-[#1d1d1f]/45">
-                      No hay calendarios. Pulsa Sincronizar.
+                      No calendars yet. Tap Sync.
                     </p>
                   ) : (
                     <ul>

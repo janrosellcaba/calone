@@ -12,7 +12,11 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<CalendarPage />} />
-          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="settings" element={<IntegrationsPage />} />
+          <Route
+            path="integrations"
+            element={<Navigate to="/settings" replace />}
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Route>

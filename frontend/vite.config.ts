@@ -22,13 +22,13 @@ export default defineConfig({
       manifest: {
         name: "Calone",
         short_name: "Calone",
-        description: "Calendarios unificados de Google y Microsoft",
+        description: "All your calendars, in one place.",
         theme_color: "#e8f1fb",
         background_color: "#e8f1fb",
         display: "standalone",
         start_url: "/",
         scope: "/",
-        lang: "es",
+        lang: "en",
         icons: [
           {
             src: "icon-192.png",

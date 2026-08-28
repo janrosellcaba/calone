@@ -18,7 +18,7 @@ export function LoginPage() {
     return (
       <div className="relative flex min-h-svh items-center justify-center text-[#1d1d1f]/50">
         <div className="pointer-events-none absolute inset-0 apple-mesh" />
-        <p className="relative">Comprobando sesión…</p>
+        <p className="relative">Checking session…</p>
       </div>
     );
   }
@@ -40,19 +40,19 @@ export function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 401) {
-          setError("Usuario o contraseña incorrectos");
+          setError("Incorrect username or password");
         } else if (err.status === 403) {
-          setError("Código de invitación no válido");
+          setError("Invalid invite code");
         } else if (err.status === 409) {
-          setError("Ese nombre de usuario ya existe");
+          setError("That username is already taken");
         } else {
-          setError(err.message || "No se pudo completar la acción");
+          setError(err.message || "Something went wrong");
         }
       } else {
         setError(
           mode === "register"
-            ? "No se pudo crear la cuenta"
-            : "No se pudo iniciar sesión",
+            ? "Could not create the account"
+            : "Could not sign in",
         );
       }
     } finally {
@@ -67,14 +67,17 @@ export function LoginPage() {
     <div className="relative flex min-h-svh items-center justify-center px-4">
       <div className="pointer-events-none absolute inset-0 apple-mesh" />
       <div className="relative w-full max-w-sm space-y-6">
-        <div className="space-y-1 text-center">
+        <div className="space-y-1.5 text-center">
           <h1 className="text-4xl font-semibold tracking-tight text-[#1d1d1f]">
             Calone
           </h1>
-          <p className="text-sm text-[#1d1d1f]/50">
+          <p className="text-[15px] font-medium tracking-tight text-[#1d1d1f]/55">
+            Calendar, in one.
+          </p>
+          <p className="text-sm text-[#1d1d1f]/45">
             {mode === "login"
-              ? "Inicia sesión para continuar"
-              : "Crea una cuenta con tu código de invitación"}
+              ? "Sign in to continue"
+              : "Create an account with your invite code"}
           </p>
         </div>
 
@@ -83,7 +86,7 @@ export function LoginPage() {
           className="glass-panel space-y-4 p-6"
         >
           <label className="block space-y-2 text-left">
-            <span className="text-sm font-medium text-[#1d1d1f]/70">Usuario</span>
+            <span className="text-sm font-medium text-[#1d1d1f]/70">Username</span>
             <input
               type="text"
               name="username"
@@ -99,7 +102,7 @@ export function LoginPage() {
 
           <label className="block space-y-2 text-left">
               <span className="text-sm font-medium text-[#1d1d1f]/70">
-                Contraseña
+                Password
               </span>
             <input
               type="password"
@@ -118,7 +121,7 @@ export function LoginPage() {
           {mode === "register" ? (
             <label className="block space-y-2 text-left">
                 <span className="text-sm font-medium text-[#1d1d1f]/70">
-                  Código de invitación
+                  Invite code
                 </span>
               <input
                 type="text"
@@ -145,18 +148,18 @@ export function LoginPage() {
           >
             {submitting
               ? mode === "register"
-                ? "Creando cuenta…"
-                : "Entrando…"
+                ? "Creating account…"
+                : "Signing in…"
               : mode === "register"
-                ? "Crear cuenta"
-                : "Entrar"}
+                ? "Create account"
+                : "Sign in"}
           </button>
         </form>
 
         <p className="text-center text-sm text-[#1d1d1f]/50">
           {mode === "login" ? (
             <>
-              ¿No tienes cuenta?{" "}
+              No account yet?{" "}
               <button
                 type="button"
                 className="font-medium text-[#007aff]"
@@ -165,12 +168,12 @@ export function LoginPage() {
                   setError(null);
                 }}
               >
-                Registrarse
+                Register
               </button>
             </>
           ) : (
             <>
-              ¿Ya tienes cuenta?{" "}
+              Already have an account?{" "}
               <button
                 type="button"
                 className="font-medium text-[#007aff]"
@@ -179,7 +182,7 @@ export function LoginPage() {
                   setError(null);
                 }}
               >
-                Iniciar sesión
+                Sign in
               </button>
             </>
           )}

@@ -59,7 +59,7 @@ function mapMicrosoftEvent(
 
   const mapped: UnifiedEvent = {
     id: `${params.subCalendarId}_${event.id}`,
-    title: event.subject?.trim() || "(Sin título)",
+    title: event.subject?.trim() || "(Untitled)",
     start,
     end,
     allDay,

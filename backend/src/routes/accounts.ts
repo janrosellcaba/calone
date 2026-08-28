@@ -2,7 +2,7 @@ import { Router } from "express";
 import { prisma } from "../db.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { syncSubCalendars } from "../services/calendarSync.js";
+import { syncSubCalendars, listAccountsForUser } from "../services/calendarSync.js";
 import { ensureValidAccessToken } from "../services/tokenService.js";
 import { getUserId } from "../types/express.js";
 
@@ -16,40 +16,36 @@ subCalendarsRouter.use(requireAuth);
 
 accountsRouter.get("/", async (req, res, next) => {
   try {
+    const accounts = await listAccountsForUser(getUserId(req));
+    res.json({ accounts });
+  } catch (err) {
+    next(err);
+  }
+});
+
+accountsRouter.post("/sync-all", async (req, res, next) => {
+  try {
     const userId = getUserId(req);
     const accounts = await prisma.calendarAccount.findMany({
       where: { userId },
-      select: {
-        id: true,
-        provider: true,
-        email: true,
-        displayName: true,
-        createdAt: true,
-        expiresAt: true,
-        subCalendars: {
-          select: {
-            id: true,
-            remoteId: true,
-            name: true,
-            color: true,
-            isActive: true,
-          },
-          orderBy: { name: "asc" },
-        },
-      },
-      orderBy: { createdAt: "asc" },
     });
 
+    const errors: Array<{ accountId: string; message: string }> = [];
+    for (const account of accounts) {
+      try {
+        const accessToken = await ensureValidAccessToken(account);
+        await syncSubCalendars(account, accessToken);
+      } catch (err) {
+        errors.push({
+          accountId: account.id,
+          message: err instanceof Error ? err.message : "Sync failed",
+        });
+      }
+    }
+
     res.json({
-      accounts: accounts.map((account) => ({
-        id: account.id,
-        provider: account.provider,
-        email: account.email,
-        displayName: account.displayName,
-        createdAt: account.createdAt.toISOString(),
-        expiresAt: account.expiresAt?.toISOString() ?? null,
-        subCalendars: account.subCalendars,
-      })),
+      accounts: await listAccountsForUser(userId),
+      errors,
     });
   } catch (err) {
     next(err);
@@ -74,6 +70,43 @@ accountsRouter.post("/:id/sync-calendars", async (req, res, next) => {
     const accessToken = await ensureValidAccessToken(account);
     const calendars = await syncSubCalendars(account, accessToken);
     res.json({ calendars });
+  } catch (err) {
+    next(err);
+  }
+});
+
+accountsRouter.patch("/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      throw new AppError(400, "Account id is required");
+    }
+
+    const existing = await prisma.calendarAccount.findFirst({
+      where: { id, userId: getUserId(req) },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new AppError(404, "Account not found");
+    }
+
+    if (typeof req.body?.displayName !== "string" || !req.body.displayName.trim()) {
+      throw new AppError(400, "displayName must be a non-empty string");
+    }
+
+    const account = await prisma.calendarAccount.update({
+      where: { id },
+      data: { displayName: req.body.displayName.trim() },
+      select: {
+        id: true,
+        displayName: true,
+        email: true,
+        provider: true,
+      },
+    });
+
+    res.json({ account });
   } catch (err) {
     next(err);
   }

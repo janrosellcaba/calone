@@ -8,7 +8,7 @@ export function ProtectedRoute() {
     return (
       <div className="relative flex min-h-svh items-center justify-center text-[#1d1d1f]/50">
         <div className="pointer-events-none absolute inset-0 apple-mesh" />
-        <p className="relative">Comprobando sesión…</p>
+        <p className="relative">Checking session…</p>
       </div>
     );
   }

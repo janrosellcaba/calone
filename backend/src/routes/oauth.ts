@@ -101,7 +101,7 @@ function clearOAuthStateCookie(res: Response) {
 }
 
 function redirectToIntegrations(query: Record<string, string>) {
-  const url = new URL("/integrations", config.appUrl);
+  const url = new URL("/settings", config.appUrl);
   for (const [key, value] of Object.entries(query)) {
     url.searchParams.set(key, value);
   }
@@ -207,7 +207,6 @@ async function upsertCalendarAccount(params: {
     },
     update: {
       email: profile.email,
-      displayName: profile.displayName,
       scopes: tokens.scope ?? defaultScopes,
       accessToken: tokens.access_token,
       ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),

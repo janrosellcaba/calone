@@ -49,7 +49,7 @@ function mapGoogleEvent(
 
   const mapped: UnifiedEvent = {
     id: `${params.subCalendarId}_${event.id}`,
-    title: event.summary?.trim() || "(Sin título)",
+    title: event.summary?.trim() || "(Untitled)",
     start: start.iso,
     end: end.iso,
     allDay,
