@@ -1,11 +1,12 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import type { Provider } from "@prisma/client";
+import type { CalendarAccount, Provider } from "@prisma/client";
 import { Router, type Request, type Response } from "express";
 import { config } from "../config.js";
 import { prisma } from "../db.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { getUserId } from "../types/express.js";
+import { syncSubCalendars } from "../services/calendarSync.js";
 
 export const oauthRouter = Router();
 
@@ -178,14 +179,14 @@ async function upsertCalendarAccount(params: {
   profile: OAuthProfile;
   tokens: OAuthTokens;
   defaultScopes: string;
-}) {
+}): Promise<CalendarAccount> {
   const { userId, provider, profile, tokens, defaultScopes } = params;
   const expiresAt =
     typeof tokens.expires_in === "number"
       ? new Date(Date.now() + tokens.expires_in * 1000)
       : null;
 
-  await prisma.calendarAccount.upsert({
+  return prisma.calendarAccount.upsert({
     where: {
       userId_provider_externalId: {
         userId,
@@ -299,7 +300,7 @@ oauthRouter.get("/google/callback", async (req, res) => {
       throw new AppError(502, "Google userinfo missing subject");
     }
 
-    await upsertCalendarAccount({
+    const account = await upsertCalendarAccount({
       userId: payload.userId,
       provider: "GOOGLE",
       profile: {
@@ -310,6 +311,12 @@ oauthRouter.get("/google/callback", async (req, res) => {
       tokens,
       defaultScopes: GOOGLE_SCOPES,
     });
+
+    try {
+      await syncSubCalendars(account, tokens.access_token);
+    } catch (syncErr) {
+      console.error("Google calendar list sync failed:", syncErr);
+    }
 
     res.redirect(redirectToIntegrations({ connected: "google" }));
   } catch (err) {
@@ -384,7 +391,7 @@ oauthRouter.get("/microsoft/callback", async (req, res) => {
       throw new AppError(502, "Microsoft Graph /me missing id");
     }
 
-    await upsertCalendarAccount({
+    const account = await upsertCalendarAccount({
       userId: payload.userId,
       provider: "MICROSOFT",
       profile: {
@@ -395,6 +402,12 @@ oauthRouter.get("/microsoft/callback", async (req, res) => {
       tokens,
       defaultScopes: MICROSOFT_SCOPES,
     });
+
+    try {
+      await syncSubCalendars(account, tokens.access_token);
+    } catch (syncErr) {
+      console.error("Microsoft calendar list sync failed:", syncErr);
+    }
 
     res.redirect(redirectToIntegrations({ connected: "microsoft" }));
   } catch (err) {

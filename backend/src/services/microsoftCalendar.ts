@@ -1,5 +1,4 @@
-import type { CalendarAccount } from "@prisma/client";
-import type { UnifiedEvent } from "../types/events.js";
+import type { CalendarFetchParams, UnifiedEvent } from "../types/events.js";
 
 type GraphDateTime = {
   dateTime?: string;
@@ -35,7 +34,6 @@ function graphDateToIso(
   }
 
   if (value.dateTime) {
-    // With Prefer: outlook.timezone="UTC", dateTime is UTC without Z sometimes
     const raw = value.dateTime.endsWith("Z")
       ? value.dateTime
       : `${value.dateTime}Z`;
@@ -51,7 +49,7 @@ function graphDateToIso(
 
 function mapMicrosoftEvent(
   event: GraphEvent,
-  account: CalendarAccount,
+  params: CalendarFetchParams,
 ): UnifiedEvent | null {
   if (!event.id) return null;
 
@@ -60,15 +58,16 @@ function mapMicrosoftEvent(
   const end = graphDateToIso(event.end, allDay, start);
 
   const mapped: UnifiedEvent = {
-    id: `${account.id}_${event.id}`,
+    id: `${params.subCalendarId}_${event.id}`,
     title: event.subject?.trim() || "(Sin título)",
     start,
     end,
     allDay,
     source: "MICROSOFT",
-    accountId: account.id,
-    accountEmail: account.email ?? "",
+    accountId: params.account.id,
+    accountEmail: params.account.email ?? "",
     originalUrl: event.webLink ?? "https://outlook.office.com/calendar/",
+    color: params.color,
   };
 
   if (event.location?.displayName) {
@@ -82,16 +81,16 @@ function mapMicrosoftEvent(
 }
 
 export async function fetchMicrosoftEvents(
-  account: CalendarAccount,
-  accessToken: string,
-  from: Date,
-  to: Date,
+  params: CalendarFetchParams,
 ): Promise<UnifiedEvent[]> {
   const events: UnifiedEvent[] = [];
+  const calendarPath = encodeURIComponent(params.remoteId);
   let nextUrl: string | undefined = (() => {
-    const url = new URL("https://graph.microsoft.com/v1.0/me/calendarView");
-    url.searchParams.set("startDateTime", from.toISOString());
-    url.searchParams.set("endDateTime", to.toISOString());
+    const url = new URL(
+      `https://graph.microsoft.com/v1.0/me/calendars/${calendarPath}/calendarView`,
+    );
+    url.searchParams.set("startDateTime", params.from.toISOString());
+    url.searchParams.set("endDateTime", params.to.toISOString());
     url.searchParams.set("$orderby", "start/dateTime");
     url.searchParams.set("$top", "100");
     return url.toString();
@@ -100,7 +99,7 @@ export async function fetchMicrosoftEvents(
   while (nextUrl) {
     const res = await fetch(nextUrl, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${params.accessToken}`,
         Prefer: 'outlook.timezone="UTC"',
       },
     });
@@ -112,7 +111,7 @@ export async function fetchMicrosoftEvents(
 
     const data = (await res.json()) as GraphCalendarViewResponse;
     for (const item of data.value ?? []) {
-      const mapped = mapMicrosoftEvent(item, account);
+      const mapped = mapMicrosoftEvent(item, params);
       if (mapped) events.push(mapped);
     }
     nextUrl = data["@odata.nextLink"];

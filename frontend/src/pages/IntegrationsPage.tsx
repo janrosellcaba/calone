@@ -1,10 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError, apiFetch } from "../api/client";
-import type { CalendarAccountSummary, CalendarSource } from "../types/events";
+import type {
+  CalendarAccountSummary,
+  CalendarSource,
+  SubCalendarSummary,
+} from "../types/events";
 
 type AccountsResponse = {
   accounts: CalendarAccountSummary[];
+};
+
+type PatchResponse = {
+  calendar: SubCalendarSummary;
+};
+
+type SyncResponse = {
+  calendars: SubCalendarSummary[];
 };
 
 const PROVIDER_LABEL: Record<CalendarSource, string> = {
@@ -16,12 +28,157 @@ function providerLabel(provider: CalendarSource) {
   return PROVIDER_LABEL[provider] ?? provider;
 }
 
+function toColorInputValue(hex: string) {
+  const v = hex.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+    return `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`.toLowerCase();
+  }
+  return "#78716c";
+}
+
+function updateSubCalendarInAccounts(
+  accounts: CalendarAccountSummary[],
+  accountId: string,
+  calendarId: string,
+  patch: Partial<SubCalendarSummary>,
+): CalendarAccountSummary[] {
+  return accounts.map((account) => {
+    if (account.id !== accountId) return account;
+    return {
+      ...account,
+      subCalendars: account.subCalendars.map((calendar) =>
+        calendar.id === calendarId ? { ...calendar, ...patch } : calendar,
+      ),
+    };
+  });
+}
+
+function SubCalendarRow({
+  calendar,
+  onPatched,
+  onError,
+}: {
+  calendar: SubCalendarSummary;
+  onPatched: (updated: SubCalendarSummary) => void;
+  onError: (message: string) => void;
+}) {
+  const [name, setName] = useState(calendar.name);
+  const nameRef = useRef(calendar.name);
+  const debounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setName(calendar.name);
+    nameRef.current = calendar.name;
+  }, [calendar.name]);
+
+  async function patch(body: Partial<Pick<SubCalendarSummary, "name" | "color" | "isActive">>) {
+    const result = await apiFetch<PatchResponse>(`/subcalendars/${calendar.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    onPatched(result.calendar);
+    return result.calendar;
+  }
+
+  async function onToggle(event: ChangeEvent<HTMLInputElement>) {
+    const isActive = event.target.checked;
+    onPatched({ ...calendar, isActive });
+    try {
+      await patch({ isActive });
+    } catch (err) {
+      onPatched({ ...calendar, isActive: calendar.isActive });
+      onError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo actualizar el calendario",
+      );
+    }
+  }
+
+  async function onColor(event: ChangeEvent<HTMLInputElement>) {
+    const color = event.target.value;
+    onPatched({ ...calendar, color });
+    try {
+      await patch({ color });
+    } catch (err) {
+      onPatched({ ...calendar, color: calendar.color });
+      onError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo actualizar el color",
+      );
+    }
+  }
+
+  function scheduleNameSave(nextName: string) {
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      void saveName(nextName);
+    }, 400);
+  }
+
+  async function saveName(nextName: string) {
+    const trimmed = nextName.trim();
+    if (!trimmed || trimmed === nameRef.current) return;
+    try {
+      const updated = await patch({ name: trimmed });
+      nameRef.current = updated.name;
+    } catch (err) {
+      setName(nameRef.current);
+      onError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo renombrar el calendario",
+      );
+    }
+  }
+
+  return (
+    <li className="flex flex-wrap items-center gap-3 py-2">
+      <label className="inline-flex cursor-pointer items-center gap-2">
+        <span className="relative inline-flex h-5 w-9 shrink-0 items-center">
+          <input
+            type="checkbox"
+            className="peer sr-only"
+            checked={calendar.isActive}
+            onChange={onToggle}
+            aria-label={`Mostrar ${calendar.name}`}
+          />
+          <span className="h-5 w-9 rounded-full bg-stone-300 transition peer-checked:bg-stone-900 peer-focus-visible:ring-2 peer-focus-visible:ring-stone-400" />
+          <span className="absolute left-0.5 size-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
+        </span>
+      </label>
+
+      <input
+        type="color"
+        value={toColorInputValue(calendar.color)}
+        onChange={onColor}
+        aria-label={`Color de ${calendar.name}`}
+        className="h-8 w-8 cursor-pointer rounded border border-stone-200 bg-white p-0.5"
+      />
+
+      <input
+        type="text"
+        value={name}
+        onChange={(event) => {
+          setName(event.target.value);
+          scheduleNameSave(event.target.value);
+        }}
+        onBlur={() => void saveName(name)}
+        className="min-w-0 flex-1 rounded-md border border-stone-200 px-2 py-1.5 text-sm text-stone-900 outline-none focus:border-stone-400 focus:ring-2 focus:ring-stone-200"
+      />
+    </li>
+  );
+}
+
 export function IntegrationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [accounts, setAccounts] = useState<CalendarAccountSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,6 +241,12 @@ export function IntegrationsPage() {
     };
   }, []);
 
+  function applySubCalendarPatch(accountId: string, updated: SubCalendarSummary) {
+    setAccounts((prev) =>
+      updateSubCalendarInAccounts(prev, accountId, updated.id, updated),
+    );
+  }
+
   async function disconnectAccount(id: string) {
     setDisconnectingId(id);
     setError(null);
@@ -102,12 +265,39 @@ export function IntegrationsPage() {
     }
   }
 
+  async function syncAccount(id: string) {
+    setSyncingId(id);
+    setError(null);
+    try {
+      const result = await apiFetch<SyncResponse>(
+        `/accounts/${id}/sync-calendars`,
+        { method: "POST" },
+      );
+      setAccounts((prev) =>
+        prev.map((account) =>
+          account.id === id
+            ? { ...account, subCalendars: result.calendars }
+            : account,
+        ),
+      );
+      setBanner("Calendarios sincronizados.");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudieron sincronizar los calendarios",
+      );
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
   return (
     <section className="space-y-8">
       <div className="space-y-2">
         <h1 className="font-serif text-3xl tracking-tight">Integraciones</h1>
         <p className="text-stone-600">
-          Conecta cuentas de calendario para unificar eventos en Calone.
+          Conecta cuentas y personaliza los calendarios que quieres ver.
         </p>
       </div>
 
@@ -158,31 +348,66 @@ export function IntegrationsPage() {
             Todavía no hay cuentas conectadas.
           </p>
         ) : (
-          <ul className="divide-y divide-stone-200 rounded-lg border border-stone-200 bg-white">
+          <ul className="space-y-4">
             {accounts.map((account) => (
               <li
                 key={account.id}
-                className="flex items-center justify-between gap-4 px-4 py-3"
+                className="rounded-lg border border-stone-200 bg-white"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-stone-900">
-                    {account.displayName ?? account.email ?? "Sin nombre"}
-                  </p>
-                  <p className="truncate text-sm text-stone-500">
-                    {providerLabel(account.provider)}
-                    {account.email ? ` · ${account.email}` : null}
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-stone-900">
+                      {account.displayName ?? account.email ?? "Sin nombre"}
+                    </p>
+                    <p className="truncate text-sm text-stone-500">
+                      {providerLabel(account.provider)}
+                      {account.email ? ` · ${account.email}` : null}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={syncingId === account.id}
+                      onClick={() => void syncAccount(account.id)}
+                      className="rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:opacity-60"
+                    >
+                      {syncingId === account.id
+                        ? "Sincronizando…"
+                        : "Sincronizar calendarios"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disconnectingId === account.id}
+                      onClick={() => void disconnectAccount(account.id)}
+                      className="rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:opacity-60"
+                    >
+                      {disconnectingId === account.id
+                        ? "Desconectando…"
+                        : "Desconectar"}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  disabled={disconnectingId === account.id}
-                  onClick={() => void disconnectAccount(account.id)}
-                  className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:opacity-60"
-                >
-                  {disconnectingId === account.id
-                    ? "Desconectando…"
-                    : "Desconectar"}
-                </button>
+
+                <div className="border-t border-stone-100 px-4 py-2">
+                  {(!account.subCalendars || account.subCalendars.length === 0) ? (
+                    <p className="py-2 text-sm text-stone-500">
+                      No hay calendarios. Pulsa «Sincronizar calendarios».
+                    </p>
+                  ) : (
+                    <ul>
+                      {account.subCalendars.map((calendar) => (
+                        <SubCalendarRow
+                          key={calendar.id}
+                          calendar={calendar}
+                          onPatched={(updated) =>
+                            applySubCalendarPatch(account.id, updated)
+                          }
+                          onError={setError}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

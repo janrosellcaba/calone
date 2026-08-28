@@ -1,4 +1,4 @@
-import type { CalendarAccount } from "@prisma/client";
+import type { CalendarAccount, SubCalendar } from "@prisma/client";
 import { prisma } from "../db.js";
 import type {
   AggregatorError,
@@ -9,31 +9,42 @@ import { fetchGoogleEvents } from "./googleCalendar.js";
 import { fetchMicrosoftEvents } from "./microsoftCalendar.js";
 import { ensureValidAccessToken } from "./tokenService.js";
 
-async function fetchEventsForAccount(
-  account: CalendarAccount,
+type ActiveSubCalendar = SubCalendar & { account: CalendarAccount };
+
+async function fetchEventsForSubCalendar(
+  sub: ActiveSubCalendar,
   from: Date,
   to: Date,
 ): Promise<UnifiedEvent[]> {
-  const accessToken = await ensureValidAccessToken(account);
+  const accessToken = await ensureValidAccessToken(sub.account);
+  const params = {
+    account: sub.account,
+    accessToken,
+    remoteId: sub.remoteId,
+    subCalendarId: sub.id,
+    color: sub.color,
+    from,
+    to,
+  };
 
-  if (account.provider === "GOOGLE") {
-    return fetchGoogleEvents(account, accessToken, from, to);
+  if (sub.account.provider === "GOOGLE") {
+    return fetchGoogleEvents(params);
   }
 
-  return fetchMicrosoftEvents(account, accessToken, from, to);
+  return fetchMicrosoftEvents(params);
 }
 
 function toAggregatorError(
-  account: CalendarAccount,
+  sub: ActiveSubCalendar,
   err: unknown,
 ): AggregatorError {
   const message =
     err instanceof Error ? err.message : "Unknown calendar fetch error";
   return {
-    accountId: account.id,
-    provider: account.provider,
-    email: account.email,
-    message,
+    accountId: sub.account.id,
+    provider: sub.account.provider,
+    email: sub.account.email,
+    message: `${sub.name}: ${message}`,
   };
 }
 
@@ -42,25 +53,29 @@ export async function aggregateEvents(
   to: Date,
   userId: string,
 ): Promise<EventsResponse> {
-  const accounts = await prisma.calendarAccount.findMany({
-    where: { userId },
+  const subs = await prisma.subCalendar.findMany({
+    where: {
+      isActive: true,
+      account: { userId },
+    },
+    include: { account: true },
     orderBy: { createdAt: "asc" },
   });
 
   const settled = await Promise.allSettled(
-    accounts.map((account) => fetchEventsForAccount(account, from, to)),
+    subs.map((sub) => fetchEventsForSubCalendar(sub, from, to)),
   );
 
   const events: UnifiedEvent[] = [];
   const errors: AggregatorError[] = [];
 
   settled.forEach((result, index) => {
-    const account = accounts[index]!;
+    const sub = subs[index]!;
     if (result.status === "fulfilled") {
       events.push(...result.value);
       return;
     }
-    errors.push(toAggregatorError(account, result.reason));
+    errors.push(toAggregatorError(sub, result.reason));
   });
 
   events.sort(

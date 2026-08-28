@@ -1,5 +1,4 @@
-import type { CalendarAccount } from "@prisma/client";
-import type { UnifiedEvent } from "../types/events.js";
+import type { CalendarFetchParams, UnifiedEvent } from "../types/events.js";
 
 type GoogleDateTime = {
   date?: string;
@@ -30,7 +29,6 @@ function toIso(value: GoogleDateTime | undefined, fallback: string): {
     return { iso: fallback, allDay: false };
   }
   if (value.date) {
-    // All-day: treat as UTC midnight of that calendar date
     return { iso: `${value.date}T00:00:00.000Z`, allDay: true };
   }
   if (value.dateTime) {
@@ -41,7 +39,7 @@ function toIso(value: GoogleDateTime | undefined, fallback: string): {
 
 function mapGoogleEvent(
   event: GoogleEvent,
-  account: CalendarAccount,
+  params: CalendarFetchParams,
 ): UnifiedEvent | null {
   if (!event.id) return null;
 
@@ -50,17 +48,18 @@ function mapGoogleEvent(
   const allDay = Boolean(event.start?.date) || start.allDay;
 
   const mapped: UnifiedEvent = {
-    id: `${account.id}_${event.id}`,
+    id: `${params.subCalendarId}_${event.id}`,
     title: event.summary?.trim() || "(Sin título)",
     start: start.iso,
     end: end.iso,
     allDay,
     source: "GOOGLE",
-    accountId: account.id,
-    accountEmail: account.email ?? "",
+    accountId: params.account.id,
+    accountEmail: params.account.email ?? "",
     originalUrl:
       event.htmlLink ??
       `https://calendar.google.com/calendar/event?eid=${encodeURIComponent(event.id)}`,
+    color: params.color,
   };
 
   if (event.location) mapped.location = event.location;
@@ -70,20 +69,18 @@ function mapGoogleEvent(
 }
 
 export async function fetchGoogleEvents(
-  account: CalendarAccount,
-  accessToken: string,
-  from: Date,
-  to: Date,
+  params: CalendarFetchParams,
 ): Promise<UnifiedEvent[]> {
   const events: UnifiedEvent[] = [];
   let pageToken: string | undefined;
+  const calendarPath = encodeURIComponent(params.remoteId);
 
   do {
     const url = new URL(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarPath}/events`,
     );
-    url.searchParams.set("timeMin", from.toISOString());
-    url.searchParams.set("timeMax", to.toISOString());
+    url.searchParams.set("timeMin", params.from.toISOString());
+    url.searchParams.set("timeMax", params.to.toISOString());
     url.searchParams.set("singleEvents", "true");
     url.searchParams.set("orderBy", "startTime");
     url.searchParams.set("maxResults", "250");
@@ -92,7 +89,7 @@ export async function fetchGoogleEvents(
     }
 
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${params.accessToken}` },
     });
 
     if (!res.ok) {
@@ -102,7 +99,7 @@ export async function fetchGoogleEvents(
 
     const data = (await res.json()) as GoogleEventsResponse;
     for (const item of data.items ?? []) {
-      const mapped = mapGoogleEvent(item, account);
+      const mapped = mapGoogleEvent(item, params);
       if (mapped) events.push(mapped);
     }
     pageToken = data.nextPageToken;

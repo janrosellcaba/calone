@@ -5,7 +5,7 @@ import cors from "cors";
 import express from "express";
 import { config } from "./config.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-import { accountsRouter } from "./routes/accounts.js";
+import { accountsRouter, subCalendarsRouter } from "./routes/accounts.js";
 import { authRouter } from "./routes/auth.js";
 import { eventsRouter } from "./routes/events.js";
 import { healthRouter } from "./routes/health.js";
@@ -29,6 +29,7 @@ export function createApp() {
   app.use("/api/auth", authRouter);
   app.use("/api/oauth", oauthRouter);
   app.use("/api/accounts", accountsRouter);
+  app.use("/api/subcalendars", subCalendarsRouter);
   app.use("/api/events", eventsRouter);
 
   // Production: serve Vite build from ../frontend/dist

@@ -53,7 +53,27 @@ model CalendarAccount {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  subCalendars SubCalendar[]
+
   @@unique([userId, provider, externalId])
   @@index([provider])
   @@index([userId])
+}
+
+/// Un calendario concreto dentro de una cuenta (primary, Trabajo, Universidad…).
+model SubCalendar {
+  id        String          @id @default(cuid())
+  accountId String
+  account   CalendarAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  /// ID del calendario en el proveedor (Google calendar id / Microsoft calendar id).
+  remoteId  String
+  name      String
+  color     String
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([accountId, remoteId])
+  @@index([accountId])
+  @@index([isActive])
 }

@@ -10,21 +10,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import { useEvents } from "../hooks/useEvents";
-import type { CalendarSource, UnifiedEvent } from "../types/events";
-
-const SOURCE_COLORS: Record<
-  CalendarSource,
-  { backgroundColor: string; borderColor: string }
-> = {
-  GOOGLE: {
-    backgroundColor: "#4285F4",
-    borderColor: "#3367D6",
-  },
-  MICROSOFT: {
-    backgroundColor: "#0078D4",
-    borderColor: "#106EBE",
-  },
-};
+import type { UnifiedEvent } from "../types/events";
 
 type DateRange = {
   from: string;
@@ -32,24 +18,21 @@ type DateRange = {
 };
 
 function toCalendarEvents(events: UnifiedEvent[]): EventInput[] {
-  return events.map((event) => {
-    const colors = SOURCE_COLORS[event.source];
-    return {
-      id: event.id,
-      title: event.title,
-      start: event.start,
-      end: event.end,
-      allDay: event.allDay,
-      url: event.originalUrl,
-      backgroundColor: colors.backgroundColor,
-      borderColor: colors.borderColor,
-      textColor: "#ffffff",
-      extendedProps: {
-        source: event.source,
-        accountEmail: event.accountEmail,
-      },
-    };
-  });
+  return events.map((event) => ({
+    id: event.id,
+    title: event.title,
+    start: event.start,
+    end: event.end,
+    allDay: event.allDay,
+    url: event.originalUrl,
+    backgroundColor: event.color,
+    borderColor: event.color,
+    textColor: "#ffffff",
+    extendedProps: {
+      source: event.source,
+      accountEmail: event.accountEmail,
+    },
+  }));
 }
 
 export function CalendarPage() {
@@ -87,29 +70,12 @@ export function CalendarPage() {
         <div className="space-y-1">
           <h1 className="font-serif text-3xl tracking-tight">Calendario</h1>
           <p className="text-sm text-stone-600">
-            Vista unificada de Google y Microsoft. Clic en un evento para abrirlo
-            en el proveedor.
+            Vista unificada. Clic en un evento para abrirlo en el proveedor.
           </p>
         </div>
-        <div className="flex items-center gap-4 text-xs text-stone-500">
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="inline-block size-2.5 rounded-sm"
-              style={{ backgroundColor: SOURCE_COLORS.GOOGLE.backgroundColor }}
-            />
-            Google
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="inline-block size-2.5 rounded-sm"
-              style={{
-                backgroundColor: SOURCE_COLORS.MICROSOFT.backgroundColor,
-              }}
-            />
-            Microsoft
-          </span>
-          {loading ? <span>Actualizando…</span> : null}
-        </div>
+        {loading ? (
+          <p className="text-xs text-stone-500">Actualizando…</p>
+        ) : null}
       </div>
 
       {error ? (

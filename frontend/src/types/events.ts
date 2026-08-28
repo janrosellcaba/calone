@@ -10,6 +10,7 @@ export interface UnifiedEvent {
   accountId: string;
   accountEmail: string;
   originalUrl: string;
+  color: string;
   location?: string;
   description?: string;
 }
@@ -33,4 +34,13 @@ export interface CalendarAccountSummary {
   displayName: string | null;
   createdAt: string;
   expiresAt: string | null;
+  subCalendars: SubCalendarSummary[];
+}
+
+export interface SubCalendarSummary {
+  id: string;
+  remoteId: string;
+  name: string;
+  color: string;
+  isActive: boolean;
 }
