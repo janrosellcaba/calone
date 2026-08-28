@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
@@ -39,6 +40,126 @@ function SettingsIcon() {
   );
 }
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 12 12"
+      fill="none"
+      aria-hidden
+      className={`text-[#1d1d1f]/40 transition ${open ? "rotate-180" : ""}`}
+    >
+      <path
+        d="M2.5 4.5 6 8l3.5-3.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M10 4H7.5A2.5 2.5 0 0 0 5 6.5v11A2.5 2.5 0 0 0 7.5 20H10"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 12h9M16 8l4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AccountMenu({
+  username,
+  onLogout,
+}: {
+  username: string;
+  onLogout: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  const initial = (username.trim()[0] ?? "?").toUpperCase();
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function onPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 pl-0.5 text-[13px] font-medium text-[#1d1d1f]/70 transition hover:bg-white/50"
+      >
+        <span className="flex size-7 items-center justify-center rounded-full bg-[#007aff] text-[12px] font-semibold text-white shadow-sm">
+          {initial}
+        </span>
+        <span className="hidden max-w-[8rem] truncate sm:inline">{username}</span>
+        <ChevronIcon open={open} />
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-[198px] overflow-hidden rounded-2xl bg-white/78 p-1.5 shadow-[0_12px_40px_rgba(30,55,90,0.16)] ring-1 ring-white/80 backdrop-blur-2xl backdrop-saturate-150"
+        >
+          <p className="truncate px-3 py-2 text-[12px] font-medium text-[#1d1d1f]/40">
+            {username}
+          </p>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2 text-left text-[14px] font-medium text-[#ff3b30] transition hover:bg-[#ff3b30]/8"
+          >
+            <LogoutIcon />
+            Sign Out
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function AppLayout() {
   const { logout, user } = useAuth();
   const location = useLocation();
@@ -59,15 +180,12 @@ export function AppLayout() {
               Settings
             </NavLink>
           </nav>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            aria-label="Log out"
-            title="Log out"
-            className="rounded-full px-3 py-1.5 text-[13px] font-medium text-[#1d1d1f]/55 hover:bg-white/50"
-          >
-            {user?.username ?? "Log out"}
-          </button>
+          {user ? (
+            <AccountMenu
+              username={user.username}
+              onLogout={() => void logout()}
+            />
+          ) : null}
         </div>
       </header>
 
