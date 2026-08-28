@@ -8,8 +8,20 @@ export interface UnifiedEvent {
   allDay: boolean;
   source: CalendarSource;
   accountId: string;
-  accountEmail?: string;
+  accountEmail: string;
   originalUrl: string;
   location?: string;
   description?: string;
+}
+
+export interface AggregatorError {
+  accountId: string;
+  provider: CalendarSource;
+  email: string | null;
+  message: string;
+}
+
+export interface EventsResponse {
+  events: UnifiedEvent[];
+  errors: AggregatorError[];
 }

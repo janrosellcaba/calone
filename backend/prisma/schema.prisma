@@ -7,13 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Sesión del dueño de la instancia (login con contraseña maestra).
-/// No hay tabla User: un solo operador. La contraseña vive en env (MASTER_PASSWORD).
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  sessions Session[]
+  accounts CalendarAccount[]
+}
+
 model Session {
   id        String   @id @default(cuid())
   tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 enum Provider {
@@ -21,24 +33,27 @@ enum Provider {
   MICROSOFT
 }
 
-/// Una cuenta de calendario conectada (puede haber N de Google y N de Microsoft).
+/// Una cuenta de calendario conectada a un usuario (N de Google y N de Microsoft).
 model CalendarAccount {
-  id          String   @id @default(cuid())
-  provider    Provider
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     Provider
   /// Identificador estable del proveedor (Google sub / Microsoft oid).
-  externalId  String
-  email       String?
-  displayName String?
+  externalId   String
+  email        String?
+  displayName  String?
   /// Scopes concedidos (espacio-separados), útil para diagnóstico.
-  scopes      String?
-  accessToken String
+  scopes       String?
+  accessToken  String
   refreshToken String?
-  expiresAt   DateTime?
+  expiresAt    DateTime?
   /// JSON opcional (p. ej. tenantId MS).
-  metadata    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  metadata     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  @@unique([provider, externalId])
+  @@unique([userId, provider, externalId])
   @@index([provider])
+  @@index([userId])
 }

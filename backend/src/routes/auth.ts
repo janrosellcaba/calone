@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
+import bcrypt from "bcryptjs";
 import { prisma } from "../db.js";
 import { AppError } from "../middleware/errorHandler.js";
 import {
@@ -7,34 +8,102 @@ import {
   clearSessionCookie,
   createSessionToken,
   hashToken,
-  passwordsMatch,
+  secretsMatch,
   sessionCookieOptions,
 } from "../auth/session.js";
 import { config } from "../config.js";
 
 export const authRouter = Router();
 
-authRouter.post("/login", async (req, res, next) => {
-  try {
-    const password =
-      typeof req.body?.password === "string" ? req.body.password : "";
+const USERNAME_RE = /^[a-z0-9._-]{3,32}$/;
+const BCRYPT_ROUNDS = 12;
 
-    if (!password || !passwordsMatch(password, config.masterPassword)) {
-      throw new AppError(401, "Invalid password");
+function parseUsername(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim().toLowerCase();
+}
+
+function parsePassword(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+async function issueSession(userId: string, res: Response): Promise<void> {
+  const token = createSessionToken();
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+  await prisma.session.create({
+    data: {
+      tokenHash: hashToken(token),
+      userId,
+      expiresAt,
+    },
+  });
+
+  res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
+}
+
+authRouter.post("/register", async (req, res, next) => {
+  try {
+    const username = parseUsername(req.body?.username);
+    const password = parsePassword(req.body?.password);
+    const inviteCode =
+      typeof req.body?.inviteCode === "string" ? req.body.inviteCode : "";
+
+    if (!USERNAME_RE.test(username)) {
+      throw new AppError(
+        400,
+        "Username must be 3–32 characters (letters, numbers, ., _ or -)",
+      );
     }
 
-    const token = createSessionToken();
-    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+    if (password.length < 8) {
+      throw new AppError(400, "Password must be at least 8 characters");
+    }
 
-    await prisma.session.create({
-      data: {
-        tokenHash: hashToken(token),
-        expiresAt,
-      },
+    if (!inviteCode || !secretsMatch(inviteCode, config.registrationCode)) {
+      throw new AppError(403, "Invalid invitation code");
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new AppError(409, "Username already taken");
+    }
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const user = await prisma.user.create({
+      data: { username, passwordHash },
     });
 
-    res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
-    res.json({ authenticated: true });
+    await issueSession(user.id, res);
+    res.status(201).json({ authenticated: true, username: user.username });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post("/login", async (req, res, next) => {
+  try {
+    const username = parseUsername(req.body?.username);
+    const password = parsePassword(req.body?.password);
+
+    if (!username || !password) {
+      throw new AppError(401, "Invalid username or password");
+    }
+
+    const user = await prisma.user.findUnique({ where: { username } });
+    const passwordOk = user
+      ? await bcrypt.compare(password, user.passwordHash)
+      : false;
+
+    if (!user || !passwordOk) {
+      throw new AppError(401, "Invalid username or password");
+    }
+
+    await issueSession(user.id, res);
+    res.json({ authenticated: true, username: user.username });
   } catch (err) {
     next(err);
   }
@@ -65,6 +134,7 @@ authRouter.get("/me", async (req, res, next) => {
 
     const session = await prisma.session.findUnique({
       where: { tokenHash: hashToken(token) },
+      include: { user: { select: { username: true } } },
     });
 
     if (!session || session.expiresAt <= new Date()) {
@@ -75,7 +145,7 @@ authRouter.get("/me", async (req, res, next) => {
       throw new AppError(401, "Unauthorized");
     }
 
-    res.json({ authenticated: true });
+    res.json({ authenticated: true, username: session.user.username });
   } catch (err) {
     next(err);
   }

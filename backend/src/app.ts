@@ -5,8 +5,11 @@ import cors from "cors";
 import express from "express";
 import { config } from "./config.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { accountsRouter } from "./routes/accounts.js";
 import { authRouter } from "./routes/auth.js";
+import { eventsRouter } from "./routes/events.js";
 import { healthRouter } from "./routes/health.js";
+import { oauthRouter } from "./routes/oauth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +27,9 @@ export function createApp() {
 
   app.use("/api/health", healthRouter);
   app.use("/api/auth", authRouter);
+  app.use("/api/oauth", oauthRouter);
+  app.use("/api/accounts", accountsRouter);
+  app.use("/api/events", eventsRouter);
 
   // Production: serve Vite build from ../frontend/dist
   if (!config.isDev) {

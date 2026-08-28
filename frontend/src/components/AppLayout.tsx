@@ -10,7 +10,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   ].join(" ");
 
 export function AppLayout() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   return (
     <div className="min-h-svh bg-stone-100 text-stone-900">
@@ -34,7 +34,7 @@ export function AppLayout() {
               onClick={() => void logout()}
               className="ml-2 rounded-md px-3 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-200 hover:text-stone-900"
             >
-              Salir
+              {user?.username ? `Salir (${user.username})` : "Salir"}
             </button>
           </nav>
         </div>

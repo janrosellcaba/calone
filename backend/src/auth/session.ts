@@ -13,7 +13,7 @@ export function createSessionToken(): string {
   return randomBytes(32).toString("hex");
 }
 
-export function passwordsMatch(provided: string, expected: string): boolean {
+export function secretsMatch(provided: string, expected: string): boolean {
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
   if (a.length !== b.length) {

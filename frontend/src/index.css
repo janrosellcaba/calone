@@ -20,3 +20,88 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* FullCalendar — stone / minimal integration */
+.calone-calendar {
+  --fc-border-color: #e7e5e4;
+  --fc-page-bg-color: #ffffff;
+  --fc-neutral-bg-color: #f5f5f4;
+  --fc-list-event-hover-bg-color: #f5f5f4;
+  --fc-today-bg-color: #fafaf9;
+  --fc-button-bg-color: #1c1917;
+  --fc-button-border-color: #1c1917;
+  --fc-button-hover-bg-color: #292524;
+  --fc-button-hover-border-color: #292524;
+  --fc-button-active-bg-color: #44403c;
+  --fc-button-active-border-color: #44403c;
+  --fc-button-text-color: #fafaf9;
+  --fc-event-border-color: transparent;
+  --fc-event-text-color: #ffffff;
+  --fc-neutral-text-color: #78716c;
+}
+
+.calone-calendar .fc {
+  font-family: var(--font-sans);
+}
+
+.calone-calendar .fc .fc-toolbar-title {
+  font-family: var(--font-serif);
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #1c1917;
+}
+
+.calone-calendar .fc .fc-button {
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-transform: none;
+  box-shadow: none !important;
+  padding: 0.35rem 0.7rem;
+}
+
+.calone-calendar .fc .fc-button-primary:not(:disabled).fc-button-active,
+.calone-calendar .fc .fc-button-primary:not(:disabled):active {
+  background-color: var(--fc-button-active-bg-color);
+  border-color: var(--fc-button-active-border-color);
+}
+
+.calone-calendar .fc .fc-col-header-cell-cushion,
+.calone-calendar .fc .fc-daygrid-day-number {
+  color: #57534e;
+  text-decoration: none;
+  font-size: 0.8125rem;
+}
+
+.calone-calendar .fc .fc-event {
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.calone-calendar .fc .fc-event:hover {
+  filter: brightness(0.95);
+}
+
+.calone-calendar .fc .fc-daygrid-event-dot {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .calone-calendar .fc .fc-toolbar {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .calone-calendar .fc .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+  }
+
+  .calone-calendar .fc .fc-toolbar-title {
+    text-align: center;
+    font-size: 1.15rem;
+  }
+}

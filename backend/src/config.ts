@@ -18,7 +18,18 @@ export const config = {
   appUrl: optional("APP_URL", "http://localhost:5173"),
   apiUrl: optional("API_URL", "http://localhost:3001"),
   sessionSecret: required("SESSION_SECRET"),
-  masterPassword: required("MASTER_PASSWORD"),
+  registrationCode: required("REGISTRATION_CODE"),
   databaseUrl: required("DATABASE_URL"),
   isDev: optional("NODE_ENV", "development") !== "production",
+  google: {
+    clientId: required("GOOGLE_CLIENT_ID"),
+    clientSecret: required("GOOGLE_CLIENT_SECRET"),
+    redirectUri: required("GOOGLE_REDIRECT_URI"),
+  },
+  microsoft: {
+    clientId: required("MICROSOFT_CLIENT_ID"),
+    clientSecret: required("MICROSOFT_CLIENT_SECRET"),
+    tenantId: optional("MICROSOFT_TENANT_ID", "common"),
+    redirectUri: required("MICROSOFT_REDIRECT_URI"),
+  },
 } as const;
