@@ -2,8 +2,28 @@ import type { CalendarAccount, Provider } from "@prisma/client";
 import { prisma } from "../db.js";
 import { AppError } from "../middleware/errorHandler.js";
 
-export const DEFAULT_GOOGLE_COLOR = "#4285F4";
-export const DEFAULT_MICROSOFT_COLOR = "#0078D4";
+export const APPLE_CALENDAR_COLORS = [
+  "#007AFF",
+  "#34C759",
+  "#FF9F0A",
+  "#AF52DE",
+  "#FF375F",
+  "#64D2FF",
+  "#5E5CE6",
+  "#30D158",
+  "#FFD60A",
+  "#FF453A",
+  "#40C8E0",
+  "#BF5AF2",
+] as const;
+
+export function appleColorAt(index: number): string {
+  const color = APPLE_CALENDAR_COLORS[index % APPLE_CALENDAR_COLORS.length];
+  return color ?? "#007AFF";
+}
+
+export const DEFAULT_GOOGLE_COLOR = appleColorAt(0);
+export const DEFAULT_MICROSOFT_COLOR = appleColorAt(0);
 
 export type RemoteCalendar = {
   remoteId: string;
@@ -18,21 +38,6 @@ export type SubCalendarSummary = {
   color: string;
   isActive: boolean;
 };
-
-function normalizeHex(value: string | undefined | null, fallback: string): string {
-  if (!value) return fallback;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.toLowerCase() === "auto") return fallback;
-  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
-  if (/^[0-9a-fA-F]{6}$/.test(trimmed)) return `#${trimmed}`;
-  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
-    const r = trimmed[1];
-    const g = trimmed[2];
-    const b = trimmed[3];
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  return fallback;
-}
 
 async function listGoogleCalendars(accessToken: string): Promise<RemoteCalendar[]> {
   const calendars: RemoteCalendar[] = [];
@@ -65,12 +70,12 @@ async function listGoogleCalendars(accessToken: string): Promise<RemoteCalendar[
       nextPageToken?: string;
     };
 
-    for (const item of data.items ?? []) {
+    for (const [index, item] of (data.items ?? []).entries()) {
       if (!item.id) continue;
       calendars.push({
         remoteId: item.id,
         name: item.summary?.trim() || "Sin nombre",
-        color: normalizeHex(item.backgroundColor, DEFAULT_GOOGLE_COLOR),
+        color: appleColorAt(index),
       });
     }
     pageToken = data.nextPageToken;
@@ -112,7 +117,7 @@ async function listMicrosoftCalendars(
       calendars.push({
         remoteId: item.id,
         name: item.name?.trim() || "Sin nombre",
-        color: normalizeHex(item.hexColor, DEFAULT_MICROSOFT_COLOR),
+        color: DEFAULT_MICROSOFT_COLOR,
       });
     }
     nextUrl = data["@odata.nextLink"];
@@ -143,7 +148,7 @@ export async function syncSubCalendars(
   const remoteIds = remote.map((item) => item.remoteId);
 
   await prisma.$transaction(async (tx) => {
-    for (const item of remote) {
+    for (const [index, item] of remote.entries()) {
       await tx.subCalendar.upsert({
         where: {
           accountId_remoteId: {
@@ -155,7 +160,7 @@ export async function syncSubCalendars(
           accountId: account.id,
           remoteId: item.remoteId,
           name: item.name,
-          color: item.color,
+          color: appleColorAt(index),
           isActive: true,
         },
         update: {},
@@ -185,6 +190,34 @@ export async function syncSubCalendars(
       isActive: true,
     },
   });
+
+  const apple = new Set(
+    APPLE_CALENDAR_COLORS.map((value) => value.toLowerCase()),
+  );
+  const needsPalette = rows.filter(
+    (row) => !apple.has(row.color.toLowerCase()),
+  );
+  if (needsPalette.length > 0) {
+    await Promise.all(
+      needsPalette.map((row, index) =>
+        prisma.subCalendar.update({
+          where: { id: row.id },
+          data: { color: appleColorAt(index) },
+        }),
+      ),
+    );
+    return prisma.subCalendar.findMany({
+      where: { accountId: account.id },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        remoteId: true,
+        name: true,
+        color: true,
+        isActive: true,
+      },
+    });
+  }
 
   return rows;
 }

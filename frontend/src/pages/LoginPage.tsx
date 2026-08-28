@@ -16,8 +16,9 @@ export function LoginPage() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-stone-100 text-stone-500">
-        Comprobando sesión…
+      <div className="relative flex min-h-svh items-center justify-center text-[#1d1d1f]/50">
+        <div className="pointer-events-none absolute inset-0 apple-mesh" />
+        <p className="relative">Comprobando sesión…</p>
       </div>
     );
   }
@@ -60,16 +61,17 @@ export function LoginPage() {
   }
 
   const inputClass =
-    "w-full rounded-md border border-stone-300 px-3 py-2 text-stone-900 outline-none focus:border-stone-500 focus:ring-2 focus:ring-stone-200";
+    "glass-input w-full rounded-2xl px-3.5 py-2.5 text-[#1d1d1f] outline-none focus:ring-2 focus:ring-[#007aff]/30";
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-stone-100 px-4">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="relative flex min-h-svh items-center justify-center px-4">
+      <div className="pointer-events-none absolute inset-0 apple-mesh" />
+      <div className="relative w-full max-w-sm space-y-6">
         <div className="space-y-1 text-center">
-          <h1 className="font-serif text-4xl tracking-tight text-stone-900">
+          <h1 className="text-4xl font-semibold tracking-tight text-[#1d1d1f]">
             Calone
           </h1>
-          <p className="text-sm text-stone-500">
+          <p className="text-sm text-[#1d1d1f]/50">
             {mode === "login"
               ? "Inicia sesión para continuar"
               : "Crea una cuenta con tu código de invitación"}
@@ -78,10 +80,10 @@ export function LoginPage() {
 
         <form
           onSubmit={onSubmit}
-          className="space-y-4 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+          className="glass-panel space-y-4 p-6"
         >
           <label className="block space-y-2 text-left">
-            <span className="text-sm font-medium text-stone-700">Usuario</span>
+            <span className="text-sm font-medium text-[#1d1d1f]/70">Usuario</span>
             <input
               type="text"
               name="username"
@@ -96,9 +98,9 @@ export function LoginPage() {
           </label>
 
           <label className="block space-y-2 text-left">
-            <span className="text-sm font-medium text-stone-700">
-              Contraseña
-            </span>
+              <span className="text-sm font-medium text-[#1d1d1f]/70">
+                Contraseña
+              </span>
             <input
               type="password"
               name="password"
@@ -115,9 +117,9 @@ export function LoginPage() {
 
           {mode === "register" ? (
             <label className="block space-y-2 text-left">
-              <span className="text-sm font-medium text-stone-700">
-                Código de invitación
-              </span>
+                <span className="text-sm font-medium text-[#1d1d1f]/70">
+                  Código de invitación
+                </span>
               <input
                 type="text"
                 name="inviteCode"
@@ -139,7 +141,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-stone-50 transition hover:bg-stone-800 disabled:opacity-60"
+            className="w-full rounded-full bg-[#007aff] px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0066d6] disabled:opacity-60"
           >
             {submitting
               ? mode === "register"
@@ -151,13 +153,13 @@ export function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-stone-500">
+        <p className="text-center text-sm text-[#1d1d1f]/50">
           {mode === "login" ? (
             <>
               ¿No tienes cuenta?{" "}
               <button
                 type="button"
-                className="font-medium text-stone-800 underline-offset-2 hover:underline"
+                className="font-medium text-[#007aff]"
                 onClick={() => {
                   setMode("register");
                   setError(null);
@@ -171,7 +173,7 @@ export function LoginPage() {
               ¿Ya tienes cuenta?{" "}
               <button
                 type="button"
-                className="font-medium text-stone-800 underline-offset-2 hover:underline"
+                className="font-medium text-[#007aff]"
                 onClick={() => {
                   setMode("login");
                   setError(null);

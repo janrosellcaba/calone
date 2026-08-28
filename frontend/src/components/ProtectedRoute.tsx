@@ -6,8 +6,9 @@ export function ProtectedRoute() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-stone-100 text-stone-500">
-        Comprobando sesión…
+      <div className="relative flex min-h-svh items-center justify-center text-[#1d1d1f]/50">
+        <div className="pointer-events-none absolute inset-0 apple-mesh" />
+        <p className="relative">Comprobando sesión…</p>
       </div>
     );
   }

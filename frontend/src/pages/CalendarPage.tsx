@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   DatesSetArg,
   EventClickArg,
@@ -10,12 +10,15 @@ import interactionPlugin from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import { useEvents } from "../hooks/useEvents";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import type { UnifiedEvent } from "../types/events";
 
 type DateRange = {
   from: string;
   to: string;
 };
+
+const SCROLL_TIME = "08:00:00";
 
 function toCalendarEvents(events: UnifiedEvent[]): EventInput[] {
   return events.map((event) => ({
@@ -36,6 +39,8 @@ function toCalendarEvents(events: UnifiedEvent[]): EventInput[] {
 }
 
 export function CalendarPage() {
+  const calendarRef = useRef<FullCalendar>(null);
+  const isPhone = useMediaQuery("(max-width: 767px)");
   const [range, setRange] = useState<DateRange | null>(null);
   const { events, errors, loading, error } = useEvents(
     range?.from ?? "",
@@ -43,6 +48,16 @@ export function CalendarPage() {
   );
 
   const calendarEvents = useMemo(() => toCalendarEvents(events), [events]);
+
+  function scrollToMorning() {
+    requestAnimationFrame(() => {
+      calendarRef.current?.getApi().scrollToTime(SCROLL_TIME);
+    });
+  }
+
+  useEffect(() => {
+    scrollToMorning();
+  }, [calendarEvents]);
 
   function onDatesSet(arg: DatesSetArg) {
     const next = {
@@ -55,6 +70,7 @@ export function CalendarPage() {
       }
       return next;
     });
+    scrollToMorning();
   }
 
   function onEventClick(arg: EventClickArg) {
@@ -65,28 +81,16 @@ export function CalendarPage() {
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-serif text-3xl tracking-tight">Calendario</h1>
-          <p className="text-sm text-stone-600">
-            Vista unificada. Clic en un evento para abrirlo en el proveedor.
-          </p>
-        </div>
-        {loading ? (
-          <p className="text-xs text-stone-500">Actualizando…</p>
-        ) : null}
-      </div>
-
+    <section className="flex h-full min-h-0 flex-col gap-3">
       {error ? (
-        <p className="text-sm text-red-700" role="alert">
+        <p className="glass-panel px-4 py-2 text-sm text-red-600" role="alert">
           {error}
         </p>
       ) : null}
 
       {errors.length > 0 ? (
         <div
-          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          className="glass-panel px-4 py-2 text-sm text-[#1d1d1f]/70"
           role="status"
         >
           Algunas cuentas no respondieron:{" "}
@@ -99,27 +103,65 @@ export function CalendarPage() {
         </div>
       ) : null}
 
-      <div className="calone-calendar overflow-hidden rounded-lg border border-stone-200 bg-white p-3 sm:p-4">
+      <div className="calone-calendar glass-panel relative min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
+        {loading ? (
+          <p className="absolute right-4 top-3 z-10 text-[12px] font-medium text-[#1d1d1f]/45">
+            Actualizando…
+          </p>
+        ) : null}
         <FullCalendar
+          ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
+          initialView="timeGridWeek"
           locale={esLocale}
-          headerToolbar={{
-            left: "prev,next today",
-            center: "title",
-            right: "dayGridMonth,timeGridWeek,timeGridDay",
-          }}
+          firstDay={1}
+          headerToolbar={
+            isPhone
+              ? { left: "prev,next", center: "title", right: "today" }
+              : {
+                  left: "prev,today,next",
+                  center: "title",
+                  right: "timeGridWeek,timeGridDay,dayGridMonth",
+                }
+          }
+          footerToolbar={
+            isPhone
+              ? { center: "timeGridWeek,timeGridDay,dayGridMonth" }
+              : undefined
+          }
           buttonText={{
             today: "Hoy",
             month: "Mes",
             week: "Semana",
             day: "Día",
           }}
-          height="auto"
+          height="100%"
+          stickyHeaderDates
           editable={false}
           selectable={false}
           nowIndicator
-          dayMaxEvents={3}
+          allDaySlot
+          dayMaxEvents={false}
+          eventMaxStack={24}
+          slotEventOverlap
+          slotMinTime="00:00:00"
+          slotMaxTime="24:00:00"
+          scrollTime={SCROLL_TIME}
+          scrollTimeReset={false}
+          slotDuration="00:30:00"
+          slotLabelInterval="01:00:00"
+          slotLabelFormat={{
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: false,
+          }}
+          eventTimeFormat={{
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: false,
+          }}
+          displayEventEnd
+          weekends
           events={calendarEvents}
           datesSet={onDatesSet}
           eventClick={onEventClick}
