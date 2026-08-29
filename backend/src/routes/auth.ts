@@ -2,6 +2,7 @@ import { Router, type Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../db.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 import {
   SESSION_COOKIE,
   SESSION_TTL_MS,
@@ -12,6 +13,7 @@ import {
   sessionCookieOptions,
 } from "../auth/session.js";
 import { config } from "../config.js";
+import { getUserId } from "../types/express.js";
 
 export const authRouter = Router();
 
@@ -118,6 +120,17 @@ authRouter.post("/logout", async (req, res, next) => {
         .catch(() => undefined);
     }
 
+    clearSessionCookie(res);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.delete("/account", requireAuth, async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    await prisma.user.delete({ where: { id: userId } });
     clearSessionCookie(res);
     res.status(204).send();
   } catch (err) {

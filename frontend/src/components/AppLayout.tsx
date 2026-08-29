@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { ApiError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
 const desktopLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -81,12 +83,142 @@ function LogoutIcon() {
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4.5 7h15M9.5 7V5.5A1.5 1.5 0 0 1 11 4h2a1.5 1.5 0 0 1 1.5 1.5V7M6.5 7l.8 12.2A1.5 1.5 0 0 0 8.8 20.5h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const DELETE_STEPS = [
+  {
+    title: "Delete Account?",
+    body: "This will permanently remove your Calone account.",
+    confirm: "Continue",
+  },
+  {
+    title: "Are you sure?",
+    body: "Connected Google and Microsoft calendars will be disconnected. This cannot be undone.",
+    confirm: "Continue",
+  },
+  {
+    title: "Last chance",
+    body: "Delete this account now? There is no going back.",
+    confirm: "Delete Account",
+  },
+] as const;
+
+function DeleteAccountDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const current = DELETE_STEPS[step] ?? DELETE_STEPS[0];
+  const last = step === DELETE_STEPS.length - 1;
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !busy) onCancel();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [busy, onCancel]);
+
+  async function confirm() {
+    if (!last) {
+      setError(null);
+      setStep((prev) => prev + 1);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Could not delete the account",
+      );
+      setBusy(false);
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+      <button
+        type="button"
+        aria-label="Cancel"
+        disabled={busy}
+        onClick={onCancel}
+        className="absolute inset-0 bg-black/25 backdrop-blur-[2px]"
+      />
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-account-title"
+        className="relative w-full max-w-[320px] overflow-hidden rounded-[22px] bg-white/86 p-5 shadow-[0_24px_80px_rgba(30,55,90,0.28)] ring-1 ring-white/90 backdrop-blur-2xl backdrop-saturate-150"
+      >
+        <h2
+          id="delete-account-title"
+          className="text-center text-[17px] font-semibold tracking-tight"
+        >
+          {current.title}
+        </h2>
+        <p className="mt-2 text-center text-[13px] leading-snug text-[#1d1d1f]/55">
+          {current.body}
+        </p>
+        {error ? (
+          <p className="mt-3 text-center text-[13px] text-[#ff3b30]" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="mt-5 flex flex-col gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void confirm()}
+            className={`min-h-11 rounded-full text-[15px] font-semibold disabled:opacity-60 ${
+              last
+                ? "bg-[#ff3b30] text-white"
+                : "bg-[#007aff] text-white"
+            }`}
+          >
+            {busy ? "Deleting…" : current.confirm}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onCancel}
+            className="min-h-11 rounded-full bg-black/5 text-[15px] font-semibold text-[#1d1d1f] disabled:opacity-60"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function AccountMenu({
   username,
   onLogout,
+  onDeleteAccount,
 }: {
   username: string;
   onLogout: () => void;
+  onDeleteAccount: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -137,7 +269,7 @@ function AccountMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-[198px] overflow-hidden rounded-2xl bg-white/78 p-1.5 shadow-[0_12px_40px_rgba(30,55,90,0.16)] ring-1 ring-white/80 backdrop-blur-2xl backdrop-saturate-150"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-[220px] overflow-hidden rounded-2xl bg-white/78 p-1.5 shadow-[0_12px_40px_rgba(30,55,90,0.16)] ring-1 ring-white/80 backdrop-blur-2xl backdrop-saturate-150"
         >
           <p className="truncate px-3 py-2 text-[12px] font-medium text-[#1d1d1f]/40">
             {username}
@@ -149,10 +281,22 @@ function AccountMenu({
               setOpen(false);
               onLogout();
             }}
-            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2 text-left text-[14px] font-medium text-[#ff3b30] transition hover:bg-[#ff3b30]/8"
+            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2 text-left text-[14px] font-medium text-[#1d1d1f]/80 transition hover:bg-black/5"
           >
             <LogoutIcon />
             Sign Out
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onDeleteAccount();
+            }}
+            className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2 text-left text-[14px] font-medium text-[#ff3b30] transition hover:bg-[#ff3b30]/8"
+          >
+            <TrashIcon />
+            Delete Account
           </button>
         </div>
       ) : null}
@@ -161,9 +305,10 @@ function AccountMenu({
 }
 
 export function AppLayout() {
-  const { logout, user } = useAuth();
+  const { logout, deleteAccount, user } = useAuth();
   const location = useLocation();
   const isCalendar = location.pathname === "/";
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="relative flex h-svh flex-col overflow-hidden text-[#1d1d1f]">
@@ -184,6 +329,7 @@ export function AppLayout() {
             <AccountMenu
               username={user.username}
               onLogout={() => void logout()}
+              onDeleteAccount={() => setConfirmDelete(true)}
             />
           ) : null}
         </div>
@@ -209,6 +355,13 @@ export function AppLayout() {
           Settings
         </NavLink>
       </nav>
+
+      {confirmDelete ? (
+        <DeleteAccountDialog
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={deleteAccount}
+        />
+      ) : null}
     </div>
   );
 }
