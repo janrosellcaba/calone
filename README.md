@@ -1,4 +1,4 @@
 # Calone
 
-All CALendars, in ONE
-Find it a [cal.janrosell.com](cal.janrosell.com)
+All CALendars, in ONE.
+Find it at [cal.janrosell.com](cal.janrosell.com)
